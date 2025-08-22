@@ -1094,15 +1094,7 @@ Type part of a model name to search available options.
 
 <i>{step_info}Select the AI brain for your resume optimization</i>
 
-Type part of a model name to search. Here are some popular options:
-
-<b>💎 Premium Models:</b>
-• <code>claude</code> - Excellent for professional writing
-• <code>gpt-4</code> - Great for detailed analysis
-
-<b>💰 Budget-Friendly:</b>
-• <code>gpt-3.5</code> - Good quality, lower cost
-• <code>llama</code> - Open-source alternative
+Type part of a model name to search (e.g., "claude", "gpt").
 
 <b>🔍 How it works:</b>
 • Type any part of a model name
