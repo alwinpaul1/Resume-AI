@@ -1051,7 +1051,8 @@ I need your OpenRouter API key to access the AI models.
         await query.edit_message_text(
             text,
             reply_markup=self.get_back_cancel_keyboard(),
-            parse_mode='HTML'
+            parse_mode='HTML',
+            disable_web_page_preview=True
         )
 
     async def prompt_model_selection(self, query, user_id):
