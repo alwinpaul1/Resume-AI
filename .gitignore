@@ -65,6 +65,7 @@ test_*.tex
 
 # Bot-specific
 user_sessions.json
+user_files/
 *.backup
 
 # Temporary files
