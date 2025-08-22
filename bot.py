@@ -542,14 +542,14 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
         
         if match:
             latex_content = match.group(1).strip()
-            # Fix underscore escaping in URLs
-            latex_content = re.sub(r'github\.com/([^}]*?)_([^}]*?)', r'github.com/\1\\_\2', latex_content)
+            # Fix underscore escaping in URLs - escape all underscores in github URLs
+            latex_content = re.sub(r'(github\.com/[^}]*?)_', r'\1\\_', latex_content)
             return latex_content
         
         # If no markdown block found, assume the entire content is LaTeX
         content = content.strip()
-        # Fix underscore escaping in URLs
-        content = re.sub(r'github\.com/([^}]*?)_([^}]*?)', r'github.com/\1\\_\2', content)
+        # Fix underscore escaping in URLs - escape all underscores in github URLs
+        content = re.sub(r'(github\.com/[^}]*?)_', r'\1\\_', content)
         return content
 
     def compile_latex_to_pdf(self, latex_code, output_path):
