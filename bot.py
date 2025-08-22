@@ -541,10 +541,16 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
         match = re.search(latex_pattern, content, re.DOTALL)
         
         if match:
-            return match.group(1).strip()
+            latex_content = match.group(1).strip()
+            # Fix underscore escaping in URLs
+            latex_content = re.sub(r'github\.com/([^}]*?)_([^}]*?)', r'github.com/\1\\_\2', latex_content)
+            return latex_content
         
         # If no markdown block found, assume the entire content is LaTeX
-        return content.strip()
+        content = content.strip()
+        # Fix underscore escaping in URLs
+        content = re.sub(r'github\.com/([^}]*?)_([^}]*?)', r'github.com/\1\\_\2', content)
+        return content
 
     def compile_latex_to_pdf(self, latex_code, output_path):
         """Compile LaTeX code to PDF using pdflatex."""
@@ -618,13 +624,16 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                             timeout=30
                         )
                         
-                        if result.returncode != 0:
-                            logger.error(f"{latex_engine} compilation failed with return code {result.returncode}")
+                        # Check if PDF was actually created (warnings don't prevent PDF generation)
+                        pdf_file = os.path.join(temp_dir, "resume.pdf")
+                        if not os.path.exists(pdf_file):
+                            logger.error(f"{latex_engine} compilation failed - no PDF generated")
                             logger.error(f"STDOUT: {result.stdout}")
                             logger.error(f"STDERR: {result.stderr}")
-                            # Also save the LaTeX content for debugging
-                            logger.error(f"LaTeX content that failed to compile: {latex_code[:500]}...")
                             return False
+                        elif result.returncode != 0:
+                            logger.warning(f"{latex_engine} had warnings but PDF was generated successfully")
+                            logger.info(f"Return code: {result.returncode}")
                     
                     # Copy the generated PDF to the desired output path
                     pdf_file = os.path.join(temp_dir, "resume.pdf")
@@ -1845,9 +1854,6 @@ The error has been logged for debugging.
 
 <b>🔄 Please try again</b>
 The system encountered an issue during PDF generation.
-
-<b>💡 Alternative:</b>
-If this persists, I can provide LaTeX code for manual compilation in Overleaf.
 
 <i>Use the menu to try again.</i>
                 """,
