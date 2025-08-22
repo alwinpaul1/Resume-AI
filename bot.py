@@ -1,9 +1,6 @@
 import os
 import logging
 import asyncio
-import tempfile
-import subprocess
-import shutil
 import json
 import re
 from pathlib import Path
@@ -13,6 +10,13 @@ import PyPDF2
 from io import BytesIO
 import aiohttp
 from dotenv import load_dotenv
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
 load_dotenv()
 
@@ -208,11 +212,11 @@ class ResumeAIBot:
 
 <i>Transform your resume with AI-powered optimization</i>
 
-Hey there! I'm here to help you create job-specific, ATS-friendly resumes using LaTeX. 
+Hey there! I'm here to help you create job-specific, ATS-friendly resumes. 
 
 <b>🎯 What I do:</b>
 • Analyze your resume + job description
-• Generate optimized LaTeX code
+• Generate optimized resume content
 • Match keywords naturally
 • Keep it 100% truthful (no fake experience!)
 
@@ -430,8 +434,8 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             logger.error(f"Error analyzing resume: {e}")
             return "Sorry, I couldn't analyze your resume at the moment. Please try again later."
 
-    async def generate_optimized_latex_resume(self, resume_text, job_description, user_id):
-        """Generate optimized LaTeX resume code based on job description."""
+    async def generate_optimized_resume_data(self, resume_text, job_description, user_id):
+        """Generate optimized resume data as JSON based on job description."""
         try:
             user_session = self.user_sessions.get(user_id, {})
             api_key = user_session.get('api_key')
@@ -440,82 +444,29 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             if not api_key or not model:
                 return None
             
+
             prompt = f"""
-            You are an ATS optimization expert and professional resume strategist with LaTeX expertise.
+You are an ATS optimization expert and professional resume strategist.
 
-            **Inputs:**
-            1. Candidate's resume: {resume_text}
-            2. Target job description: {job_description}
+**Inputs:**  
+1. Candidate's resume: {resume_text}
+2. Target job description: {job_description}
 
-            **Your Mission:**
-            - Extract the content from the resume while preserving structure (sections, bullet points, chronology).
-            - Do NOT invent new experiences, achievements, or numbers.
-            - Do NOT delete valid roles, projects, or skills.
-            - Optimize the resume for ATS parsing by aligning phrasing and keywords with the job description.
-            - Ensure formatting is ATS-friendly (no tables, graphics, or unusual fonts).
-            - Rebuild the optimized resume in structured format.
+**Your Mission:**  
+- Extract the content from the PDF resume.  
+- Compare it against the job description.  
+- Do NOT invent new experiences, achievements, or numbers.  
+- Do NOT delete valid roles, projects, or skills.  
+- Optimize the resume to pass ATS filters by aligning vocabulary and keywords with the job description.  
+- Preserve the **exact same design, formatting, fonts, section headers, and spacing** of the original resume PDF.  
+- Make only content-level changes (phrasing, keyword alignment, terminology).  
+- Deliver the final resume as a **ready-to-use optimized PDF** that visually matches the original.  
 
-            **Process:**
-            1. Extract → Convert the original resume content into structured text.
-            2. Audit → Compare resume with job description, identify missing/mismatched keywords.
-            3. Keyword Mapping → Suggest and integrate JD-aligned terminology.
-            4. Rewrite → Output a full optimized resume structure, preserving authenticity.
-               - Note where keyword changes are applied for transparency.
-            5. Deliver → Provide structured resume data with optimization notes.
-
-            **CRITICAL OUTPUT FORMAT - FOLLOW EXACTLY:**
-            IMPORTANT: Do NOT include any reasoning steps, explanations, or additional text. Provide ONLY the structured format below.
-
-            OPTIMIZATIONS_START
-            • Summary Section: [specific change made]
-            • Experience Section: [specific change made]  
-            • Skills Section: [specific change made]
-            • [etc...]
-            OPTIMIZATIONS_END
-
-            LATEX_START
-            \\documentclass[11pt,letterpaper]{{article}}
-            \\usepackage[T1]{{fontenc}}
-            \\usepackage{{lmodern}}
-            [Complete LaTeX code here - no explanations, just pure LaTeX]
-            \\end{{document}}
-            LATEX_END
-
-            CRITICAL: Provide ONLY the above format. No reasoning, no explanations, no additional text.
-
-            **LaTeX Requirements:**
-            - Start with \\documentclass and end with \\end{{document}}
-            - Use ONLY packages compatible with pdflatex (NO fontspec, NO unicode-math)
-            - Use standard LaTeX fonts (Computer Modern, Latin Modern, or times/helvet packages)
-            - Use clean, modern formatting suitable for ATS parsing
-            - No tables, graphics, or complex formatting that could confuse ATS
-            - Professional font and spacing with standard LaTeX commands
-            - Clear section headers and bullet points
-
-            **CRITICAL: pdflatex Compatibility**
-            - DO NOT use \\usepackage{{fontspec}} or \\setmainfont (XeLaTeX/LuaLaTeX only)
-            - Use \\usepackage{{lmodern}} or \\usepackage{{times}} for fonts instead
-            - Use \\usepackage[T1]{{fontenc}} for proper font encoding
-            - All packages must work with pdflatex engine
-            - ALWAYS escape underscores in URLs: use \\_ instead of _ (e.g., Financial\\_Crew not Financial_Crew)
-            - Wrap GitHub URLs in \\texttt{{}} to prevent line breaks: \\texttt{{github.com/user/repo\\_name}}
-            - Never let URLs break across lines - use non-breaking formatting
-
-            Remember: You MUST include both sections (OPTIMIZATIONS and LATEX) in the exact format specified above.
+**Output Requirements:**  
+- Optimized resume in PDF format (same design/layout as original).  
+- A short bullet-point summary of keyword/phrasing optimizations applied.
             """
 
-            # Dynamic max_tokens calculation based on model context window and prompt size
-            model_context_window = user_session.get('model_context_window', 8192)
-            # Simple heuristic: ~3 characters per token
-            prompt_tokens_estimate = max(1, len(prompt) // 3)
-            # Leave a safety buffer for system/metadata and to avoid edge hits
-            safety_buffer = 500
-            available_for_output = max(0, model_context_window - prompt_tokens_estimate - safety_buffer)
-            dynamic_max_tokens = max(1000, min(4096, available_for_output))
-
-            logger.info(
-                f"Dynamic max_tokens: {dynamic_max_tokens} (context={model_context_window}, prompt≈{prompt_tokens_estimate})"
-            )
 
             headers = {
                 "Authorization": f"Bearer {api_key}",
@@ -525,10 +476,10 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": "You are a LaTeX resume generation machine. Your ONLY function is to output the structured format requested by the user. You MUST NOT include any reasoning, thoughts, or conversational text. Your entire response must strictly adhere to the user's requested format, starting with OPTIMIZATIONS_START and ending with LATEX_END."},
+                    {"role": "system", "content": "You are a resume optimization specialist. Return only valid JSON data as specified by the user. Do not include any other text, explanations, or formatting."},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": dynamic_max_tokens,
+                "max_tokens": 4096,
                 "temperature": 0.3
             }
 
@@ -551,7 +502,6 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                         
                         # Clean reasoning artifacts (for reasoning models)
                         cleaned_response = full_response
-                        # Remove common reasoning model artifacts
                         reasoning_patterns = [
                             r'<thinking>.*?</thinking>',
                             r'<thought>.*?</thought>',
@@ -560,43 +510,7 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                         for pattern in reasoning_patterns:
                             cleaned_response = re.sub(pattern, '', cleaned_response, flags=re.DOTALL)
                         
-                        # Parse the structured response (improved for reasoning models)
-                        optimizations = ""
-                        latex_code = ""
-                        
-                        # Extract optimizations
-                        opt_start = cleaned_response.find("OPTIMIZATIONS_START")
-                        opt_end = cleaned_response.find("OPTIMIZATIONS_END")
-                        if opt_start != -1 and opt_end != -1:
-                            opt_content = cleaned_response[opt_start + len("OPTIMIZATIONS_START"):opt_end].strip()
-                            # Clean up the optimizations text
-                            optimizations = opt_content.replace('\n\n', '\n').strip()
-                        
-                        # Extract LaTeX code (more flexible parsing for reasoning models)
-                        latex_start = cleaned_response.find("LATEX_START")
-                        latex_end = cleaned_response.find("LATEX_END")
-                        if latex_start != -1 and latex_end != -1:
-                            latex_content = cleaned_response[latex_start + len("LATEX_START"):latex_end].strip()
-                            # Clean up the LaTeX code
-                            latex_code = latex_content.replace('LATEX_END', '').strip()
-                        
-                        # Alternative parsing: look for LaTeX document structure
-                        if not latex_code:
-                            # Try to find LaTeX content by looking for document structure
-                            doc_start = cleaned_response.find("\\documentclass")
-                            doc_end = cleaned_response.rfind("\\end{document}")
-                            if doc_start != -1 and doc_end != -1:
-                                latex_code = cleaned_response[doc_start:doc_end + len("\\end{document}")].strip()
-                                logger.info("Extracted LaTeX using document structure fallback")
-                        
-                        # If structured parsing failed, fall back to treating entire response as LaTeX
-                        if not latex_code:
-                            latex_code = cleaned_response
-                            optimizations = "• Keywords optimized to match job requirements\n• Experience sections enhanced for relevance\n• Skills reordered by importance to the role"
-                            logger.warning("Using cleaned response as LaTeX fallback")
-                        
-                        # Return both components as a tuple
-                        return (latex_code, optimizations)
+                        return full_response
                     else:
                         error_text = await response.text()
                         logger.error(f"OpenRouter API error: {error_text}")
@@ -606,82 +520,7 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             logger.error(f"Error generating resume data: {e}")
             return None
 
-    def extract_latex_from_markdown(self, content):
-        """Extract LaTeX code from markdown code blocks or reasoning model outputs."""
-        import re
-        
-        # Strategy 1: Look for ```latex ... ``` blocks
-        latex_pattern = r'```latex\s*\n(.*?)\n```'
-        match = re.search(latex_pattern, content, re.DOTALL)
-        
-        if match:
-            latex_content = match.group(1).strip()
-            logger.info("Extracted LaTeX from markdown code block")
-        else:
-            # Strategy 2: Look for LaTeX document structure directly
-            doc_start = content.find("\\documentclass")
-            doc_end = content.rfind("\\end{document}")
-            
-            if doc_start != -1 and doc_end != -1:
-                latex_content = content[doc_start:doc_end + len("\\end{document}")].strip()
-                logger.info("Extracted LaTeX using document structure")
-            else:
-                # Strategy 3: Look for any code block with LaTeX-like content
-                code_block_pattern = r'```[a-zA-Z]*\s*\n(.*?)\n```'
-                code_matches = re.findall(code_block_pattern, content, re.DOTALL)
-                
-                latex_content = None
-                for code in code_matches:
-                    if "\\documentclass" in code and "\\begin{document}" in code:
-                        latex_content = code.strip()
-                        logger.info("Extracted LaTeX from generic code block")
-                        break
-                
-                if not latex_content:
-                    # Strategy 4: Fallback - use entire content and hope for the best
-                    latex_content = content.strip()
-                    logger.warning("Using entire content as LaTeX fallback")
-        
-        # Clean and fix common issues
-        if latex_content:
-            # Fix underscore escaping in URLs
-            latex_content = re.sub(r'(github\.com/[^}\s]*?)_([^}\s]*?)', r'\1\\_\2', latex_content)
-            # Wrap github URLs in texttt to prevent line breaks
-            latex_content = re.sub(r'{(github\.com/[^}]*?)}', r'{\\texttt{\1}}', latex_content)
-            
-        return latex_content
 
-    def verify_resume_content(self, latex_content, job_description):
-        """Verify that the resume content is properly optimized."""
-        try:
-            # Basic checks
-            if not latex_content or len(latex_content.strip()) < 50:
-                logger.warning(f"LaTeX content too short: {len(latex_content.strip()) if latex_content else 0} characters")
-                return False
-            
-            # Check for proper LaTeX structure (more lenient for reasoning models)
-            required_elements = [
-                r'\\documentclass',
-                r'\\begin{document}',
-                r'\\end{document}',
-            ]
-            
-            missing_elements = []
-            for element in required_elements:
-                if not re.search(element, latex_content):
-                    missing_elements.append(element)
-            
-            if missing_elements:
-                logger.warning(f"Missing LaTeX elements: {missing_elements}")
-                return False
-            
-            # Log successful verification
-            logger.info(f"LaTeX content verification passed. Length: {len(latex_content)} characters")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error verifying resume content: {e}")
-            return True  # Default to true if verification fails
 
     async def animate_loading_message(self, message, title_text: str, status_lines: list, duration_seconds: float = 1.8, frame_interval_seconds: float = 0.12):
         """Show a short spinner animation on the provided Telegram message."""
@@ -707,142 +546,6 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                 pass
             await asyncio.sleep(frame_interval_seconds)
 
-    def compile_latex_to_pdf(self, latex_code, output_path):
-        """Compile LaTeX code to PDF using pdflatex."""
-        try:
-            # Preprocess LaTeX to improve pdflatex compatibility
-            def sanitize_latex_for_pdflatex(source: str) -> str:
-                cleaned = source
-                # Remove packages that require XeLaTeX/LuaLaTeX
-                cleaned = re.sub(r"^\\s*\\usepackage\{(?:fontspec|unicode-math|polyglossia)\}\\s*$", "", cleaned, flags=re.MULTILINE)
-                cleaned = re.sub(r"^\\s*\\usepackage\[[^\]]*\]\{(?:fontspec|unicode-math|polyglossia)\}\\s*$", "", cleaned, flags=re.MULTILINE)
-
-                # Ensure fontenc T1 present
-                if "\\usepackage[T1]{fontenc}" not in cleaned:
-                    cleaned = cleaned.replace("\\documentclass", "\\documentclass\n\\usepackage[T1]{fontenc}", 1)
-
-                # Ensure a pdflatex-safe font package present (lmodern or times)
-                if "\\usepackage{lmodern}" not in cleaned and "\\usepackage{times}" not in cleaned:
-                    cleaned = cleaned.replace("\\usepackage[T1]{fontenc}", "\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}", 1)
-
-                # Escape underscores in bare URLs and typewriter text blocks
-                def escape_underscores(match):
-                    inner = match.group(1).replace("_", "\\_")
-                    return match.group(0).replace(match.group(1), inner)
-
-                cleaned = re.sub(r"\\texttt\{([^}]*)\}", escape_underscores, cleaned)
-                cleaned = re.sub(r"(https?://[^\s}]+)", lambda m: m.group(0).replace("_", "\\_"), cleaned)
-
-                return cleaned
-
-            latex_code = sanitize_latex_for_pdflatex(latex_code)
-
-            # Basic validation of LaTeX content
-            if not latex_code or len(latex_code.strip()) < 50:
-                logger.error("LaTeX code is empty or too short")
-                return False
-            
-            # Check for basic LaTeX structure
-            if '\\documentclass' not in latex_code:
-                logger.error("LaTeX code missing \\documentclass")
-                return False
-            
-            if '\\begin{document}' not in latex_code:
-                logger.error("LaTeX code missing \\begin{document}")
-                return False
-            
-            if '\\end{document}' not in latex_code:
-                logger.error("LaTeX code missing \\end{document}")
-                return False
-            
-            # Check for problematic packages that don't work with pdflatex
-            problematic_packages = ['fontspec', 'unicode-math', 'polyglossia']
-            for package in problematic_packages:
-                if f'\\usepackage{{{package}}}' in latex_code or ('\\usepackage[' in latex_code and f'{package}' in latex_code):
-                    logger.warning(f"Found potentially problematic package '{package}' - may require XeLaTeX/LuaLaTeX")
-            
-            logger.info(f"LaTeX validation passed. Content length: {len(latex_code)} characters")
-            
-            # Create temporary directory for compilation
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Write LaTeX code to temporary file
-                tex_file = os.path.join(temp_dir, "resume.tex")
-                with open(tex_file, 'w', encoding='utf-8') as f:
-                    f.write(latex_code)
-                
-                # Also save a copy for debugging purposes
-                debug_file = "/Users/alwinpaul/Desktop/Project/Resume AI/debug_latex.tex"
-                try:
-                    with open(debug_file, 'w', encoding='utf-8') as f:
-                        f.write(latex_code)
-                    logger.info(f"LaTeX saved for debugging: {debug_file}")
-                except Exception as e:
-                    logger.warning(f"Could not save debug LaTeX file: {e}")
-                
-                # Check which LaTeX engines are available
-                pdflatex_available = shutil.which('pdflatex')
-                xelatex_available = shutil.which('xelatex')
-                
-                if not pdflatex_available and not xelatex_available:
-                    logger.error("Neither pdflatex nor xelatex found. Please install LaTeX (e.g., TeX Live, MiKTeX)")
-                    return False
-                
-                # Choose the appropriate engine (prefer pdflatex for speed)
-                if pdflatex_available:
-                    latex_engine = 'pdflatex'
-                else:
-                    latex_engine = 'xelatex'
-                    
-                logger.info(f"Using LaTeX engine: {latex_engine}")
-                
-                # Compile LaTeX to PDF
-                def run_compile(engine: str) -> tuple[bool, str, str]:
-                    try:
-                        last_stdout = ''
-                        last_stderr = ''
-                        for _ in range(2):
-                            result = subprocess.run(
-                                [engine, '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file],
-                                capture_output=True,
-                                text=True,
-                                encoding='utf-8',
-                                errors='replace',
-                                timeout=60
-                            )
-                            last_stdout = result.stdout
-                            last_stderr = result.stderr
-                        pdf_file_local = os.path.join(temp_dir, "resume.pdf")
-                        return (os.path.exists(pdf_file_local), last_stdout, last_stderr)
-                    except subprocess.TimeoutExpired:
-                        return (False, '', f"{engine} compilation timed out")
-                    except Exception as ex:
-                        return (False, '', f"{engine} compilation error: {ex}")
-
-                success, out, err = run_compile(latex_engine)
-                if not success and xelatex_available and latex_engine != 'xelatex':
-                    logger.warning("pdflatex failed to produce a PDF. Retrying with xelatex as fallback...")
-                    success, out, err = run_compile('xelatex')
-
-                if not success:
-                    logger.error(f"LaTeX compilation failed. Engine tried: {latex_engine}")
-                    if out:
-                        logger.error(f"STDOUT: {out[-4000:]}")
-                    if err:
-                        logger.error(f"STDERR: {err[-4000:]}")
-                    return False
-
-                # Copy the generated PDF to the desired output path
-                pdf_file = os.path.join(temp_dir, "resume.pdf")
-                if os.path.exists(pdf_file):
-                    shutil.copy2(pdf_file, output_path)
-                    return True
-                else:
-                    logger.error("PDF file was not generated")
-                    return False
-            
-        except Exception as e:
-            logger.error(f"Error compiling LaTeX to PDF: {e}")
-            return False
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle uploaded documents."""
@@ -960,12 +663,12 @@ Now, please paste the complete job description for the position you're applying 
             """
 <b>📄 Ready to Optimize Your Resume!</b>
 
-<i>Let's create a job-specific LaTeX resume</i>
+<i>Let's create a job-specific optimized resume</i>
 
 <b>🚀 Simple 3-step process:</b>
 1. Upload your resume (PDF only)
 2. Provide job description
-3. Get optimized LaTeX code
+3. Get optimized resume content
 
 <i>Upload your resume file to get started!</i>
             """,
@@ -1564,7 +1267,7 @@ Validating your new configuration...
 <b>💡 Why this model:</b>
 • Professional writing capabilities
 • Understanding of job requirements
-• LaTeX code generation
+• Optimized content generation
 • ATS optimization knowledge
 
 <i>Setting up your configuration...</i>
@@ -1857,7 +1560,7 @@ Let's get you configured first!
 <i>Ready to create your perfect job-specific resume?</i>
 
 <b>🚀 Simple Process:</b>
-📄 Upload Resume → 📋 Job Description → 📝 LaTeX Code
+📄 Upload Resume → 📋 Job Description → 📝 Optimized Content
 
 <i>Use the menu below to get started!</i>
                         """,
@@ -1941,7 +1644,7 @@ Let's get you configured first!
         self.user_sessions[user_id]['state'] = 'selecting_model'
 
     async def handle_job_description(self, update, job_description, user_id):
-        """Handle job description input and generate optimized LaTeX resume."""
+        """Handle job description input and generate optimized resume content."""
         if len(job_description) < 50:
             await update.message.reply_text(
                 """
@@ -2026,8 +1729,8 @@ Let's get you configured first!
             except Exception:
                 pass  # Continue if message edit fails
         
-        # Generate optimized LaTeX resume
-        resume_result = await self.generate_optimized_latex_resume(resume_text, job_description, user_id)
+        # Generate optimized resume content
+        resume_result = await self.generate_optimized_resume_data(resume_text, job_description, user_id)
         
         if not resume_result:
             await processing_msg.edit_text(
@@ -2043,176 +1746,23 @@ Let's get you configured first!
             )
             return
         
-        # Unpack the result tuple
-        latex_code, optimizations = resume_result
+        # Store result as simple text response
+        self.user_sessions[user_id]['last_response'] = resume_result
         
-        # Store optimizations in user session for later use
-        self.user_sessions[user_id]['last_optimizations'] = optimizations
-        
-        # Update processing message
+        # Send the AI response as text
         await processing_msg.edit_text(
-            """
-<b>🎉 Analysis Complete!</b>
+            f"""
+<b>✅ Resume Analysis Complete!</b>
 
-<i>✅ Resume optimized for the job requirements!</i>
+<i>Here's your optimized resume content:</i>
 
-<b>📄 Generating PDF...</b>
-• Professional formatting applied
-• Keywords optimized
-• ATS-friendly structure
-• Ready to download
+{resume_result}
 
-<i>Creating your PDF resume...</i>
+<i>Use this optimized content for your job application!</i>
             """,
+            reply_markup=self.get_main_menu_keyboard(),
             parse_mode='HTML'
         )
-        
-        # Create PDF from LaTeX
-        try:
-            # Create temporary file for PDF
-            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
-                pdf_path = temp_file.name
-            
-            # Update progress - PDF compilation with spinner
-            for i in range(6):  # Show animation for ~0.7 seconds
-                frame = spinner_frames[i % len(spinner_frames)]
-                try:
-                    await processing_msg.edit_text(
-                        f"""
-<b>🔄 Creating Your Optimized Resume</b>
-
-<i>✅ Resume: Processed</i>
-<i>✅ Job Description: Analyzed</i>
-<i>✅ AI Optimization: Complete</i>
-
-<b>⏳ Compiling PDF...</b>
-{frame} <i>Converting LaTeX to professional PDF...</i>
-                        """,
-                        parse_mode='HTML'
-                    )
-                    await asyncio.sleep(0.12)
-                except Exception:
-                    pass  # Continue if message edit fails
-            
-            # Extract pure LaTeX from markdown
-            pure_latex = self.extract_latex_from_markdown(latex_code)
-            
-            # Update progress - Verification with spinner
-            for i in range(5):  # Show animation for ~0.6 seconds
-                frame = spinner_frames[i % len(spinner_frames)]
-                try:
-                    await processing_msg.edit_text(
-                        f"""
-<b>🔄 Creating Your Optimized Resume</b>
-
-<i>✅ Resume: Processed</i>
-<i>✅ Job Description: Analyzed</i>
-<i>✅ AI Optimization: Complete</i>
-
-<b>⏳ Verifying content...</b>
-{frame} <i>Ensuring quality and compatibility...</i>
-                        """,
-                        parse_mode='HTML'
-                    )
-                    await asyncio.sleep(0.12)
-                except Exception:
-                    pass  # Continue if message edit fails
-            
-            # Verify the content quality (more lenient for reasoning models)
-            verification_result = self.verify_resume_content(pure_latex, job_description)
-            logger.info(f"Content verification result: {verification_result}")
-            
-            if not verification_result:
-                logger.warning("Content verification failed, but proceeding with PDF generation")
-                # For reasoning models, we'll be more lenient and try to proceed
-                # await processing_msg.edit_text(
-                #     """
-                # <b>❌ Content Verification Failed</b>
-                # 
-                # <i>The generated resume doesn't meet quality standards.</i>
-                # 
-                # <i>Please try again.</i>
-                #     """,
-                #     reply_markup=self.get_main_menu_keyboard(),
-                #     parse_mode='HTML'
-                # )
-                # return
-            
-            # Compile to PDF
-            pdf_created = self.compile_latex_to_pdf(pure_latex, pdf_path)
-            
-            if pdf_created:
-                # Replace static 100% message with a brief loading animation
-                title = "Creating Your Optimized Resume"
-                statuses = [
-                    "<i>✅ Resume: Processed</i>",
-                    "<i>✅ Job Description: Analyzed</i>",
-                    "<i>✅ AI Optimization: Complete</i>",
-                    "<i>✅ PDF Compilation: Success</i>",
-                ]
-                await self.animate_loading_message(processing_msg, title, statuses, duration_seconds=1.5, frame_interval_seconds=0.1)
-                
-                # Send the PDF file
-                with open(pdf_path, 'rb') as pdf_file:
-                    # Create the optimizations text
-                    optimizations_text = optimizations if optimizations.strip() else "• Keywords matched to job requirements\n• Experience reordered by relevance\n• ATS-friendly formatting\n• Professional LaTeX styling"
-                    
-                    caption = f"""
-<b>📄 Your Optimized Resume PDF</b>
-
-<i>✅ Generated successfully!</i>
-
-<b>🎯 Optimizations Applied:</b>
-{optimizations_text}
-
-<i>Download and use for your job application!</i>
-                    """
-                    
-                    await update.message.reply_document(
-                        document=pdf_file,
-                        filename=f"optimized_resume_{user_id}.pdf",
-                        caption=caption,
-                        reply_markup=self.get_main_menu_keyboard(),
-                        parse_mode='HTML'
-                    )
-                
-                # Clean up temporary file
-                os.unlink(pdf_path)
-                
-            else:
-                # PDF generation failed - simplified error message
-                await processing_msg.edit_text(
-                    """
-<b>❌ PDF Generation Failed</b>
-
-<i>Sorry, there was an issue creating your PDF resume</i>
-
-<b>🔄 What happened:</b>
-• LaTeX compilation encountered errors
-• This has been logged for debugging
-• Please try again in a moment
-
-<i>Use the menu to try again.</i>
-                    """,
-                    reply_markup=self.get_main_menu_keyboard(),
-                    parse_mode='HTML'
-                )
-                
-        except Exception as e:
-            logger.error(f"Error creating/sending PDF: {e}")
-            await processing_msg.edit_text(
-                """
-<b>❌ Processing Error</b>
-
-<i>Something went wrong during resume processing</i>
-
-<b>🔄 Please try again</b>
-
-<i>Use the menu to retry.</i>
-                """,
-                reply_markup=self.get_main_menu_keyboard(),
-                parse_mode='HTML'
-            )
 
 def main():
     """Start the bot."""
