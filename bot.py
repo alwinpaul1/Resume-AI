@@ -1710,7 +1710,7 @@ Let's get you configured first!
             )
             return
         
-        # Show processing message
+        # Show initial progress message
         processing_msg = await update.message.reply_text(
             """
 <b>🔄 Creating Your Optimized Resume</b>
@@ -1718,13 +1718,22 @@ Let's get you configured first!
 <i>✅ Resume: Processed</i>
 <i>✅ Job Description: Analyzed</i>
 
-<b>⏳ AI is working on:</b>
-• Keyword matching and optimization
-• Experience prioritization
-• LaTeX code generation
-• ATS-friendly formatting
+<b>Progress:</b>
+▓░░░░░░░░░ 10% - Starting AI analysis...
+            """,
+            parse_mode='HTML'
+        )
+        
+        # Update progress - AI analysis
+        await processing_msg.edit_text(
+            """
+<b>🔄 Creating Your Optimized Resume</b>
 
-<i>This may take 30-60 seconds... Please wait!</i>
+<i>✅ Resume: Processed</i>
+<i>✅ Job Description: Analyzed</i>
+
+<b>Progress:</b>
+▓▓▓▓▓░░░░░ 50% - AI analyzing and optimizing...
             """,
             parse_mode='HTML'
         )
@@ -1775,11 +1784,42 @@ Let's get you configured first!
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
                 pdf_path = temp_file.name
             
+            # Update progress - PDF compilation
+            await processing_msg.edit_text(
+                """
+<b>🔄 Creating Your Optimized Resume</b>
+
+<i>✅ Resume: Processed</i>
+<i>✅ Job Description: Analyzed</i>
+<i>✅ AI Optimization: Complete</i>
+
+<b>Progress:</b>
+▓▓▓▓▓▓▓▓░░ 80% - Compiling PDF...
+                """,
+                parse_mode='HTML'
+            )
+            
             # Extract pure LaTeX from markdown and compile to PDF
             pure_latex = self.extract_latex_from_markdown(latex_code)
             pdf_created = self.compile_latex_to_pdf(pure_latex, pdf_path)
             
             if pdf_created:
+                # Final progress update
+                await processing_msg.edit_text(
+                    """
+<b>🔄 Creating Your Optimized Resume</b>
+
+<i>✅ Resume: Processed</i>
+<i>✅ Job Description: Analyzed</i>
+<i>✅ AI Optimization: Complete</i>
+<i>✅ PDF Compilation: Success</i>
+
+<b>Progress:</b>
+▓▓▓▓▓▓▓▓▓▓ 100% - Ready to download!
+                    """,
+                    parse_mode='HTML'
+                )
+                
                 # Send the PDF file
                 with open(pdf_path, 'rb') as pdf_file:
                     await update.message.reply_document(
