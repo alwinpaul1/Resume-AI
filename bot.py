@@ -1002,11 +1002,19 @@ Now, please paste the complete job description for the position you're applying 
 <i>You can also paste your resume text directly if you prefer!</i>
         """
         keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]
-        await query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='HTML'
-        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            # If editing fails, send a new message instead
+            await query.message.reply_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
 
     async def prompt_api_key(self, query, user_id):
         """Prompt user to enter API key."""
@@ -1725,8 +1733,9 @@ Let's get you configured first!
         )
         
         # Update progress - AI analysis
-        await processing_msg.edit_text(
-            """
+        try:
+            await processing_msg.edit_text(
+                """
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
@@ -1734,9 +1743,11 @@ Let's get you configured first!
 
 <b>Progress:</b>
 ▓▓▓▓▓░░░░░ 50% - AI analyzing and optimizing...
-            """,
-            parse_mode='HTML'
-        )
+                """,
+                parse_mode='HTML'
+            )
+        except:
+            pass  # Continue if message edit fails
         
         # Generate optimized LaTeX resume
         latex_code = await self.generate_optimized_latex_resume(resume_text, job_description, user_id)
@@ -1785,8 +1796,9 @@ Let's get you configured first!
                 pdf_path = temp_file.name
             
             # Update progress - PDF compilation
-            await processing_msg.edit_text(
-                """
+            try:
+                await processing_msg.edit_text(
+                    """
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
@@ -1795,9 +1807,11 @@ Let's get you configured first!
 
 <b>Progress:</b>
 ▓▓▓▓▓▓▓▓░░ 80% - Compiling PDF...
-                """,
-                parse_mode='HTML'
-            )
+                    """,
+                    parse_mode='HTML'
+                )
+            except:
+                pass  # Continue if message edit fails
             
             # Extract pure LaTeX from markdown and compile to PDF
             pure_latex = self.extract_latex_from_markdown(latex_code)
@@ -1805,8 +1819,9 @@ Let's get you configured first!
             
             if pdf_created:
                 # Final progress update
-                await processing_msg.edit_text(
-                    """
+                try:
+                    await processing_msg.edit_text(
+                        """
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
@@ -1816,9 +1831,11 @@ Let's get you configured first!
 
 <b>Progress:</b>
 ▓▓▓▓▓▓▓▓▓▓ 100% - Ready to download!
-                    """,
-                    parse_mode='HTML'
-                )
+                        """,
+                        parse_mode='HTML'
+                    )
+                except:
+                    pass  # Continue if message edit fails
                 
                 # Send the PDF file
                 with open(pdf_path, 'rb') as pdf_file:
