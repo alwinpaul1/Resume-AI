@@ -497,7 +497,8 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             - Use \\usepackage[T1]{{fontenc}} for proper font encoding
             - All packages must work with pdflatex engine
             - ALWAYS escape underscores in URLs: use \\_ instead of _ (e.g., Financial\\_Crew not Financial_Crew)
-            - Keep GitHub URLs on single lines with proper escaping
+            - Wrap GitHub URLs in \\texttt{{}} to prevent line breaks: \\texttt{{github.com/user/repo\\_name}}
+            - Never let URLs break across lines - use non-breaking formatting
 
             Generate ONLY the complete LaTeX code that compiles cleanly with pdflatex. Include brief comments showing where optimizations were made.
             """
@@ -547,20 +548,18 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
         
         if match:
             latex_content = match.group(1).strip()
-            # Fix underscore escaping in URLs - escape ALL underscores in github URLs
-            # First pass: replace all underscores in github URLs
-            latex_content = re.sub(r'(github\.com/[^}\s]*?)_', r'\1\\_', latex_content)
-            # Second pass: handle any remaining unescaped underscores
-            latex_content = re.sub(r'(github\.com/[^}\s]*?[^\\])_', r'\1\\_', latex_content)
+            # Fix underscore escaping in URLs - use texttt for monospace and prevent line breaks
+            latex_content = re.sub(r'(github\.com/[^}\s]*?)_([^}\s]*?)', r'\1\\_\2', latex_content)
+            # Wrap github URLs in texttt to prevent line breaks and use monospace
+            latex_content = re.sub(r'{(github\.com/[^}]*?)}', r'{\\texttt{\1}}', latex_content)
             return latex_content
         
         # If no markdown block found, assume the entire content is LaTeX
         content = content.strip()
-        # Fix underscore escaping in URLs - escape ALL underscores in github URLs
-        # First pass: replace all underscores in github URLs
-        content = re.sub(r'(github\.com/[^}\s]*?)_', r'\1\\_', content)
-        # Second pass: handle any remaining unescaped underscores
-        content = re.sub(r'(github\.com/[^}\s]*?[^\\])_', r'\1\\_', content)
+        # Fix underscore escaping in URLs - use texttt for monospace and prevent line breaks
+        content = re.sub(r'(github\.com/[^}\s]*?)_([^}\s]*?)', r'\1\\_\2', content)
+        # Wrap github URLs in texttt to prevent line breaks and use monospace
+        content = re.sub(r'{(github\.com/[^}]*?)}', r'{\\texttt{\1}}', content)
         return content
 
     def verify_resume_content(self, latex_content, job_description):
