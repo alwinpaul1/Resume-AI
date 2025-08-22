@@ -152,8 +152,10 @@ class ResumeAIBot:
     def get_back_cancel_keyboard(self):
         """Get back/cancel keyboard."""
         keyboard = [
-            [InlineKeyboardButton("🔙 Back", callback_data="back")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="back"),
+                InlineKeyboardButton("❌ Cancel", callback_data="cancel")
+            ]
         ]
         return InlineKeyboardMarkup(keyboard)
 
