@@ -135,8 +135,7 @@ class ResumeAIBot:
         keyboard = [
             [InlineKeyboardButton("📄 Optimize Resume (PDF)", callback_data="analyze_resume")],
             [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
-            [InlineKeyboardButton("🆘 Help", callback_data="help")],
-            [InlineKeyboardButton("ℹ️ About", callback_data="about")]
+            [InlineKeyboardButton("ℹ️ Info", callback_data="info")]
         ]
         return InlineKeyboardMarkup(keyboard)
 
@@ -277,41 +276,37 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Send a message when the command /help is issued."""
-        help_text = """
-<b>🆘 Resume AI Bot Help</b>
+        """Send unified info when the command /help is issued."""
+        await self.send_info(update)
 
-<i>Your personal resume optimization assistant</i>
+    async def send_info(self, update: Update):
+        """Send unified info in response to a /help command."""
+        info_text = """
+ℹ️ **Resume AI Bot — Info**
 
-<b>🚀 How it works:</b>
-1. Upload your resume (PDF, DOCX, TXT)
-2. Provide target job description
-3. Get optimized PDF resume
+**How to use:**
+1. Set your OpenRouter API key in Settings
+2. Select your preferred AI model
+3. Upload your resume as PDF
+4. Provide the job description
+5. Receive optimized, ATS-friendly PDF
 
-<b>📁 Supported formats:</b>
-• PDF files (.pdf)
-• Word documents (.docx)  
-• Text files (.txt)
-
-<b>✨ Key features:</b>
+**Features:**
 • PDF resume generation
 • Job-specific keyword optimization
 • ATS-friendly formatting
 • Professional styling
 • Ready-to-use PDF download
-• 100% truthful (no fake experience)
 
-<b>📋 Simple process:</b>
+**Process:**
 📄 Upload → 📋 Job Description → 📝 PDF Resume
 
-<b>🎯 Commands:</b>
-/start - Welcome message
-/help - This help message  
-/analyze - Start optimization
-
-<i>Upload your resume to get started!</i>
+**Privacy & Storage:**
+• Your settings (API key & model) are stored locally
+• No resume content is permanently stored
+• Use "Clear Settings" to remove stored data
         """
-        await update.message.reply_text(help_text, parse_mode='HTML')
+        await update.message.reply_text(info_text, parse_mode='Markdown')
 
     def extract_text_from_pdf(self, file_content):
         """Extract text from PDF file."""
@@ -765,10 +760,8 @@ Now, please paste the complete job description for the position you're applying 
             await self.show_main_menu(query)
         elif data == "settings":
             await self.show_settings_menu(query)
-        elif data == "help":
-            await self.show_help(query)
-        elif data == "about":
-            await self.show_about(query)
+        elif data == "info":
+            await self.show_info(query)
         elif data == "analyze_resume":
             await self.prompt_resume_upload(query)
         elif data == "set_api_key":
@@ -903,22 +896,17 @@ Now, please paste the complete job description for the position you're applying 
             parse_mode='HTML'
         )
 
-    async def show_help(self, query):
-        """Show help information."""
-        help_text = """
-🆘 **Resume AI Bot Help**
+    async def show_info(self, query):
+        """Show unified info (help + about)."""
+        info_text = """
+ℹ️ **Resume AI Bot — Info**
 
 **How to use:**
 1. Set your OpenRouter API key in Settings
 2. Select your preferred AI model
-3. Upload your resume file (PDF, DOCX, or TXT)
+3. Upload your resume as PDF
 4. Provide the job description
-5. Get optimized LaTeX code for Overleaf
-
-**Supported formats:**
-• PDF files (.pdf)
-• Word documents (.docx)
-• Text files (.txt)
+5. Receive optimized, ATS-friendly PDF
 
 **Features:**
 • PDF resume generation
@@ -930,52 +918,14 @@ Now, please paste the complete job description for the position you're applying 
 **Process:**
 📄 Upload → 📋 Job Description → 📝 PDF Resume
 
-**Models:**
-This bot uses OpenRouter to access various AI models including Claude, GPT, and others.
-        """
-        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]
-        await query.edit_message_text(
-            help_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-
-    async def show_about(self, query):
-        """Show about information."""
-        about_text = """
-ℹ️ **About Resume AI Bot**
-
-This bot helps you optimize your resume for specific job applications using advanced AI models from OpenRouter.
-
-**Features:**
-• PDF resume generation
-• Job-specific keyword optimization
-• ATS-friendly formatting
-• Professional styling
-• Ready-to-use PDF download
-• Secure API key handling
-
-**How it works:**
-1. Upload your current resume
-2. Provide target job description
-3. Get optimized PDF resume
-4. Download and use immediately
-5. Apply with confidence
-
-**Powered by OpenRouter**
-Access to various AI models including Claude, GPT-4, and more.
-
 **Privacy & Storage:**
-• Your settings (API key & model) are saved locally for convenience
+• Your settings (API key & model) are stored locally
 • No resume content is permanently stored
-• Settings persist between bot restarts
 • Use "Clear Settings" to remove stored data
-
-Version: 3.1
         """
         keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]
         await query.edit_message_text(
-            about_text,
+            info_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -1014,8 +964,6 @@ Version: 3.1
 
 <b>📁 Upload your resume:</b>
 • PDF (.pdf)
-• Word Document (.docx)
-• Text File (.txt)
 
 <b>📏 Requirements:</b>
 • Maximum file size: 20MB
