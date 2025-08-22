@@ -532,6 +532,20 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             logger.error(f"Error generating resume data: {e}")
             return None
 
+    def extract_latex_from_markdown(self, content):
+        """Extract LaTeX code from markdown code blocks."""
+        import re
+        
+        # Look for ```latex ... ``` blocks
+        latex_pattern = r'```latex\s*\n(.*?)\n```'
+        match = re.search(latex_pattern, content, re.DOTALL)
+        
+        if match:
+            return match.group(1).strip()
+        
+        # If no markdown block found, assume the entire content is LaTeX
+        return content.strip()
+
     def compile_latex_to_pdf(self, latex_code, output_path):
         """Compile LaTeX code to PDF using pdflatex."""
         try:
@@ -1752,8 +1766,9 @@ Let's get you configured first!
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
                 pdf_path = temp_file.name
             
-            # Compile LaTeX to PDF
-            pdf_created = self.compile_latex_to_pdf(latex_code, pdf_path)
+            # Extract pure LaTeX from markdown and compile to PDF
+            pure_latex = self.extract_latex_from_markdown(latex_code)
+            pdf_created = self.compile_latex_to_pdf(pure_latex, pdf_path)
             
             if pdf_created:
                 # Send the PDF file
@@ -1802,7 +1817,7 @@ The error has been logged for debugging.
                 )
                 
                 # Send the LaTeX code as fallback
-                message_text = f"📝 **Optimized LaTeX Code** (Fallback)\n\n```latex\n{latex_code}\n```\n\n" \
+                message_text = f"📝 **Optimized LaTeX Code** (Fallback)\n\n```latex\n{pure_latex}\n```\n\n" \
                               f"**Instructions:**\n" \
                               f"1. Copy the LaTeX code above\n" \
                               f"2. Go to Overleaf.com\n" \
