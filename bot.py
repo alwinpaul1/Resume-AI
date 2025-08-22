@@ -6,6 +6,7 @@ import subprocess
 import shutil
 import json
 import re
+import asyncio
 from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -592,6 +593,30 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
         except Exception as e:
             logger.error(f"Error verifying resume content: {e}")
             return True  # Default to true if verification fails
+
+    async def animate_loading_message(self, message, title_text: str, status_lines: list, duration_seconds: float = 1.8, frame_interval_seconds: float = 0.12):
+        """Show a short spinner animation on the provided Telegram message."""
+        spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        total_frames = max(1, int(duration_seconds / frame_interval_seconds))
+        for i in range(total_frames):
+            frame = spinner_frames[i % len(spinner_frames)]
+            text = """
+<b>🔄 {title}</b>
+
+{statuses}
+
+<i>{frame} Preparing your download...</i>
+            """.format(
+                title=title_text,
+                statuses="\n".join(status_lines),
+                frame=frame
+            )
+            try:
+                await message.edit_text(text, parse_mode='HTML')
+            except Exception:
+                # Ignore edit errors to keep UX smooth
+                pass
+            await asyncio.sleep(frame_interval_seconds)
 
     def compile_latex_to_pdf(self, latex_code, output_path):
         """Compile LaTeX code to PDF using pdflatex."""
@@ -1894,24 +1919,15 @@ The system will regenerate with better optimization.
             pdf_created = self.compile_latex_to_pdf(pure_latex, pdf_path)
             
             if pdf_created:
-                # Final progress update
-                try:
-                    await processing_msg.edit_text(
-                        """
-<b>🔄 Creating Your Optimized Resume</b>
-
-<i>✅ Resume: Processed</i>
-<i>✅ Job Description: Analyzed</i>
-<i>✅ AI Optimization: Complete</i>
-<i>✅ PDF Compilation: Success</i>
-
-<b>Progress:</b>
-▓▓▓▓▓▓▓▓▓▓ 100% - Ready to download!
-                        """,
-                        parse_mode='HTML'
-                    )
-                except Exception:
-                    pass  # Continue if message edit fails
+                # Replace static 100% message with a brief loading animation
+                title = "Creating Your Optimized Resume"
+                statuses = [
+                    "<i>✅ Resume: Processed</i>",
+                    "<i>✅ Job Description: Analyzed</i>",
+                    "<i>✅ AI Optimization: Complete</i>",
+                    "<i>✅ PDF Compilation: Success</i>",
+                ]
+                await self.animate_loading_message(processing_msg, title, statuses, duration_seconds=1.5, frame_interval_seconds=0.1)
                 
                 # Send the PDF file
                 with open(pdf_path, 'rb') as pdf_file:
