@@ -543,13 +543,17 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                         opt_start = full_response.find("OPTIMIZATIONS_START")
                         opt_end = full_response.find("OPTIMIZATIONS_END")
                         if opt_start != -1 and opt_end != -1:
-                            optimizations = full_response[opt_start + len("OPTIMIZATIONS_START"):opt_end].strip()
+                            opt_content = full_response[opt_start + len("OPTIMIZATIONS_START"):opt_end].strip()
+                            # Clean up the optimizations text
+                            optimizations = opt_content.replace('\n\n', '\n').strip()
                         
                         # Extract LaTeX code
                         latex_start = full_response.find("LATEX_START")
                         latex_end = full_response.find("LATEX_END")
                         if latex_start != -1 and latex_end != -1:
-                            latex_code = full_response[latex_start + len("LATEX_START"):latex_end].strip()
+                            latex_content = full_response[latex_start + len("LATEX_START"):latex_end].strip()
+                            # Clean up the LaTeX code
+                            latex_code = latex_content.replace('LATEX_END', '').strip()
                         
                         # If structured parsing failed, fall back to treating entire response as LaTeX
                         if not latex_code:
@@ -715,6 +719,8 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                             [latex_engine, '-interaction=nonstopmode', '-output-directory', temp_dir, tex_file],
                             capture_output=True,
                             text=True,
+                            encoding='utf-8',
+                            errors='replace',
                             timeout=30
                         )
                         
@@ -1314,16 +1320,10 @@ Type part of a model name to search (e.g., "claude", "gpt").
 <i>🎉 All systems are go!</i>
 
 <b>📋 Verified Configuration:</b>
-🔑 API Key: <b>✅ Valid & Active</b>
-🤖 Model: <b>✅ {model}</b>
-🌐 Connection: <b>✅ Established</b>
-💰 Credits: <b>✅ Available</b>
-
-<b>🚀 Capabilities Unlocked:</b>
-📄 Resume analysis
-📝 LaTeX generation  
-🎯 Keyword optimization
-⚡ Real-time processing
+🔑 <b>API Key:</b> ✅ Valid & Active
+🤖 <b>Model:</b> ✅ {model}
+🌐 <b>Connection:</b> ✅ Established
+💰 <b>Credits:</b> ✅ Available
 
 <b>🎊 You're all set!</b>
 
@@ -1340,19 +1340,7 @@ Type part of a model name to search (e.g., "claude", "gpt").
 🤖 Model: <b>❓ {model}</b>
 🌐 Connection: <b>❌ Failed</b>
 
-<b>🔧 Common Issues:</b>
-• API key is incorrect or expired
-• Insufficient credits in account
-• Model not accessible with current plan
-• Network connectivity problems
-
-<b>💡 Solutions:</b>
-1. Verify your API key at <a href="https://openrouter.ai/keys">OpenRouter</a>
-2. Check your account balance
-3. Try a different model
-4. Ensure stable internet connection
-
-<i>Update your settings and try again.</i>
+<i>Please check your API key and try again.</i>
             """
         
         await query.edit_message_text(
@@ -1609,17 +1597,7 @@ Validating your new configuration...
 
 <i>There seems to be an issue with your API key</i>
 
-<b>🔍 Possible issues:</b>
-• Invalid API key
-• Insufficient credits
-• Network connection
-
-<b>🔄 What to do:</b>
-1. Double-check your API key
-2. Ensure you have credits in OpenRouter
-3. Try again
-
-<i>Please send your API key again, or use the back button.</i>
+<i>Please check your API key and try again.</i>
                     """,
                     reply_markup=self.get_back_cancel_keyboard(),
                     parse_mode='HTML'
@@ -1820,28 +1798,34 @@ Let's get you configured first!
 <i>✅ Resume: Processed</i>
 <i>✅ Job Description: Analyzed</i>
 
-<b>Progress:</b>
-▓░░░░░░░░░ 10% - Starting AI analysis...
+<b>⏳ Starting AI analysis...</b>
+⠋ <i>Initializing optimization process...</i>
             """,
             parse_mode='HTML'
         )
         
-        # Update progress - AI analysis
-        try:
-            await processing_msg.edit_text(
-                """
+        # Update progress - AI analysis with spinner animation
+        spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        
+        # Animate during AI processing
+        for i in range(8):  # Show animation for ~1 second
+            frame = spinner_frames[i % len(spinner_frames)]
+            try:
+                await processing_msg.edit_text(
+                    f"""
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
 <i>✅ Job Description: Analyzed</i>
 
-<b>Progress:</b>
-▓▓▓▓▓░░░░░ 50% - AI analyzing and optimizing...
-                """,
-                parse_mode='HTML'
-            )
-        except Exception:
-            pass  # Continue if message edit fails
+<b>⏳ AI analyzing and optimizing...</b>
+{frame} <i>Matching keywords and enhancing content...</i>
+                    """,
+                    parse_mode='HTML'
+                )
+                await asyncio.sleep(0.12)
+            except Exception:
+                pass  # Continue if message edit fails
         
         # Generate optimized LaTeX resume
         resume_result = await self.generate_optimized_latex_resume(resume_text, job_description, user_id)
@@ -1853,12 +1837,7 @@ Let's get you configured first!
 
 <i>Sorry, I couldn't process your resume and job description</i>
 
-<b>🔄 Please try:</b>
-• Check your API key and credits
-• Ensure resume and job description are clear
-• Try again in a moment
-
-<i>Use the menu to try again or check settings.</i>
+<i>Please try again in a moment.</i>
                 """,
                 reply_markup=self.get_main_menu_keyboard(),
                 parse_mode='HTML'
@@ -1895,44 +1874,50 @@ Let's get you configured first!
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
                 pdf_path = temp_file.name
             
-            # Update progress - PDF compilation
-            try:
-                await processing_msg.edit_text(
-                    """
+            # Update progress - PDF compilation with spinner
+            for i in range(6):  # Show animation for ~0.7 seconds
+                frame = spinner_frames[i % len(spinner_frames)]
+                try:
+                    await processing_msg.edit_text(
+                        f"""
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
 <i>✅ Job Description: Analyzed</i>
 <i>✅ AI Optimization: Complete</i>
 
-<b>Progress:</b>
-▓▓▓▓▓▓▓▓░░ 80% - Compiling PDF...
-                    """,
-                    parse_mode='HTML'
-                )
-            except Exception:
-                pass  # Continue if message edit fails
+<b>⏳ Compiling PDF...</b>
+{frame} <i>Converting LaTeX to professional PDF...</i>
+                        """,
+                        parse_mode='HTML'
+                    )
+                    await asyncio.sleep(0.12)
+                except Exception:
+                    pass  # Continue if message edit fails
             
             # Extract pure LaTeX from markdown
             pure_latex = self.extract_latex_from_markdown(latex_code)
             
-            # Update progress - Verification
-            try:
-                await processing_msg.edit_text(
-                    """
+            # Update progress - Verification with spinner
+            for i in range(5):  # Show animation for ~0.6 seconds
+                frame = spinner_frames[i % len(spinner_frames)]
+                try:
+                    await processing_msg.edit_text(
+                        f"""
 <b>🔄 Creating Your Optimized Resume</b>
 
 <i>✅ Resume: Processed</i>
 <i>✅ Job Description: Analyzed</i>
 <i>✅ AI Optimization: Complete</i>
 
-<b>Progress:</b>
-▓▓▓▓▓▓▓░░░ 70% - Verifying content...
-                    """,
-                    parse_mode='HTML'
-                )
-            except Exception:
-                pass  # Continue if message edit fails
+<b>⏳ Verifying content...</b>
+{frame} <i>Ensuring quality and compatibility...</i>
+                        """,
+                        parse_mode='HTML'
+                    )
+                    await asyncio.sleep(0.12)
+                except Exception:
+                    pass  # Continue if message edit fails
             
             # Verify the content quality
             if not self.verify_resume_content(pure_latex, job_description):
@@ -1942,9 +1927,9 @@ Let's get you configured first!
 
 <i>The generated resume doesn't meet quality standards.</i>
 
-<b>🔄 Please try again</b>
-The system will regenerate with better optimization.
+<i>Please try again.</i>
                     """,
+                    reply_markup=self.get_main_menu_keyboard(),
                     parse_mode='HTML'
                 )
                 return
@@ -1991,56 +1976,35 @@ The system will regenerate with better optimization.
                 os.unlink(pdf_path)
                 
             else:
-                # PDF generation failed, provide LaTeX code as fallback
-                await update.message.reply_text(
+                # PDF generation failed - simplified error message
+                await processing_msg.edit_text(
                     """
 <b>❌ PDF Generation Failed</b>
 
-<i>The LaTeX compilation encountered errors, but I'll provide the optimized LaTeX code below</i>
+<i>Sorry, there was an issue creating your PDF resume</i>
 
-<b>💡 You can still use this code:</b>
-• Copy the LaTeX code below
-• Paste it into <a href="https://overleaf.com/">Overleaf.com</a>
-• Compile manually to get your PDF
+<b>🔄 What happened:</b>
+• LaTeX compilation encountered errors
+• This has been logged for debugging
+• Please try again in a moment
 
-<b>🔧 This helps us improve:</b>
-The error has been logged for debugging.
+<i>Use the menu to try again.</i>
                     """,
                     reply_markup=self.get_main_menu_keyboard(),
                     parse_mode='HTML'
                 )
                 
-                # Send the LaTeX code as fallback
-                optimizations_display = optimizations if optimizations.strip() else "• Keywords matched to job requirements\n• Experience reordered by relevance\n• ATS-friendly formatting"
-                
-                message_text = f"📝 **Optimized LaTeX Code** (Fallback)\n\n```latex\n{pure_latex}\n```\n\n" \
-                              f"**Instructions:**\n" \
-                              f"1. Copy the LaTeX code above\n" \
-                              f"2. Go to Overleaf.com\n" \
-                              f"3. Create a new blank project\n" \
-                              f"4. Paste and compile\n\n" \
-                              f"**🎯 Optimizations Applied:**\n" \
-                              f"{optimizations_display}"
-                
-                await self.send_long_message(
-                    update,
-                    message_text,
-                    reply_markup=self.get_main_menu_keyboard(),
-                    parse_mode='Markdown'
-                )
-                
         except Exception as e:
             logger.error(f"Error creating/sending PDF: {e}")
-            await update.message.reply_text(
+            await processing_msg.edit_text(
                 """
-<b>❌ PDF Creation Error</b>
+<b>❌ Processing Error</b>
 
-<i>Sorry, there was an error creating your PDF resume</i>
+<i>Something went wrong during resume processing</i>
 
 <b>🔄 Please try again</b>
-The system encountered an issue during PDF generation.
 
-<i>Use the menu to try again.</i>
+<i>Use the menu to retry.</i>
                 """,
                 reply_markup=self.get_main_menu_keyboard(),
                 parse_mode='HTML'
