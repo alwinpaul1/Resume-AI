@@ -97,7 +97,7 @@ python bot.py
 3. Settings are automatically saved for future use
 
 ### Creating Optimized Resumes
-1. **Upload Resume**: Send PDF, DOCX, or TXT file
+1. **Upload Resume**: Send PDF file
 2. **Provide Job Description**: Paste the target job posting
 3. **Receive PDF**: Get professional, ATS-optimized PDF resume
 4. **Download & Apply**: Ready-to-use resume file
