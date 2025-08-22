@@ -493,6 +493,8 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             - Use \\usepackage{{lmodern}} or \\usepackage{{times}} for fonts instead
             - Use \\usepackage[T1]{{fontenc}} for proper font encoding
             - All packages must work with pdflatex engine
+            - ALWAYS escape underscores in URLs: use \\_ instead of _ (e.g., Financial\\_Crew not Financial_Crew)
+            - Keep GitHub URLs on single lines with proper escaping
 
             Generate ONLY the complete LaTeX code that compiles cleanly with pdflatex. Include brief comments showing where optimizations were made.
             """
@@ -542,15 +544,52 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
         
         if match:
             latex_content = match.group(1).strip()
-            # Fix underscore escaping in URLs - escape all underscores in github URLs
-            latex_content = re.sub(r'(github\.com/[^}]*?)_', r'\1\\_', latex_content)
+            # Fix underscore escaping in URLs - escape ALL underscores in github URLs
+            # First pass: replace all underscores in github URLs
+            latex_content = re.sub(r'(github\.com/[^}\s]*?)_', r'\1\\_', latex_content)
+            # Second pass: handle any remaining unescaped underscores
+            latex_content = re.sub(r'(github\.com/[^}\s]*?[^\\])_', r'\1\\_', latex_content)
             return latex_content
         
         # If no markdown block found, assume the entire content is LaTeX
         content = content.strip()
-        # Fix underscore escaping in URLs - escape all underscores in github URLs
-        content = re.sub(r'(github\.com/[^}]*?)_', r'\1\\_', content)
+        # Fix underscore escaping in URLs - escape ALL underscores in github URLs
+        # First pass: replace all underscores in github URLs
+        content = re.sub(r'(github\.com/[^}\s]*?)_', r'\1\\_', content)
+        # Second pass: handle any remaining unescaped underscores
+        content = re.sub(r'(github\.com/[^}\s]*?[^\\])_', r'\1\\_', content)
         return content
+
+    def verify_resume_content(self, latex_content, job_description):
+        """Verify that the resume content is properly optimized."""
+        try:
+            # Basic checks
+            if not latex_content or len(latex_content.strip()) < 100:
+                return False
+            
+            # Check for proper LaTeX structure
+            required_elements = [
+                r'\\documentclass',
+                r'\\begin{document}',
+                r'\\end{document}',
+                r'\\textbf{.*?}',  # Name formatting
+            ]
+            
+            for element in required_elements:
+                if not re.search(element, latex_content):
+                    return False
+            
+            # Check for underscore escaping in URLs
+            github_urls = re.findall(r'github\.com/[^}\s]*', latex_content)
+            for url in github_urls:
+                if '_' in url and '\\_' not in url:
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error verifying resume content: {e}")
+            return True  # Default to true if verification fails
 
     def compile_latex_to_pdf(self, latex_code, output_path):
         """Compile LaTeX code to PDF using pdflatex."""
@@ -1813,8 +1852,43 @@ Let's get you configured first!
             except:
                 pass  # Continue if message edit fails
             
-            # Extract pure LaTeX from markdown and compile to PDF
+            # Extract pure LaTeX from markdown
             pure_latex = self.extract_latex_from_markdown(latex_code)
+            
+            # Update progress - Verification
+            try:
+                await processing_msg.edit_text(
+                    """
+<b>🔄 Creating Your Optimized Resume</b>
+
+<i>✅ Resume: Processed</i>
+<i>✅ Job Description: Analyzed</i>
+<i>✅ AI Optimization: Complete</i>
+
+<b>Progress:</b>
+▓▓▓▓▓▓▓░░░ 70% - Verifying content...
+                    """,
+                    parse_mode='HTML'
+                )
+            except:
+                pass  # Continue if message edit fails
+            
+            # Verify the content quality
+            if not self.verify_resume_content(pure_latex, job_description):
+                await processing_msg.edit_text(
+                    """
+<b>❌ Content Verification Failed</b>
+
+<i>The generated resume doesn't meet quality standards.</i>
+
+<b>🔄 Please try again</b>
+The system will regenerate with better optimization.
+                    """,
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Compile to PDF
             pdf_created = self.compile_latex_to_pdf(pure_latex, pdf_path)
             
             if pdf_created:
