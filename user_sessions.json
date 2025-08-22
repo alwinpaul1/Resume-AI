@@ -1,0 +1,7 @@
+{
+  "7744296624": {
+    "api_key": "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",
+    "model": "deepseek/deepseek-chat-v3.1",
+    "state": "waiting_api_key"
+  }
+}
