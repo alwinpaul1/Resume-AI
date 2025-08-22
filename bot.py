@@ -6,7 +6,6 @@ import subprocess
 import shutil
 import json
 import re
-import asyncio
 from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -473,14 +472,22 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                - Note where keyword changes are applied for transparency.
             5. Deliver → Provide structured resume data with optimization notes.
 
-            **Output Requirements:**
-            - Generate COMPLETE LaTeX code that compiles cleanly with pdflatex
-            - Optimize keywords to match job description naturally
-            - Use professional LaTeX formatting (article class, modern styling)
-            - Include proper sections: Contact, Summary, Experience, Education, Skills
-            - Make it ATS-friendly with clear section headers
-            - Insert LaTeX comments (% ...) where keyword changes are applied for transparency
-            - Ensure all content from original resume is preserved and enhanced
+            **CRITICAL OUTPUT FORMAT:**
+            Your response must be structured EXACTLY as follows:
+
+            OPTIMIZATIONS_START
+            [List each specific optimization made, with location and type. Be very detailed about what was changed and where. Example:
+            • Summary Section: Replaced "software developer" with "full-stack developer" to match job requirements
+            • Experience Section: Added "React.js" and "TypeScript" keywords to front-end project descriptions
+            • Skills Section: Reorganized technical skills to prioritize JavaScript frameworks mentioned in job posting
+            • Work History: Reworded "created applications" to "developed scalable web applications" in Software Engineer role]
+            OPTIMIZATIONS_END
+
+            LATEX_START
+            \\documentclass[11pt,letterpaper]{{article}}
+            [Complete LaTeX code here...]
+            \\end{{document}}
+            LATEX_END
 
             **LaTeX Requirements:**
             - Start with \\documentclass and end with \\end{{document}}
@@ -500,7 +507,7 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
             - Wrap GitHub URLs in \\texttt{{}} to prevent line breaks: \\texttt{{github.com/user/repo\\_name}}
             - Never let URLs break across lines - use non-breaking formatting
 
-            Generate ONLY the complete LaTeX code that compiles cleanly with pdflatex. Include brief comments showing where optimizations were made.
+            Remember: You MUST include both sections (OPTIMIZATIONS and LATEX) in the exact format specified above.
             """
 
             headers = {
@@ -526,9 +533,31 @@ Don't have one? Get it from <a href="https://openrouter.ai/">OpenRouter</a> (it'
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        # Return LaTeX code directly
-                        latex_code = data['choices'][0]['message']['content']
-                        return latex_code
+                        full_response = data['choices'][0]['message']['content']
+                        
+                        # Parse the structured response
+                        optimizations = ""
+                        latex_code = ""
+                        
+                        # Extract optimizations
+                        opt_start = full_response.find("OPTIMIZATIONS_START")
+                        opt_end = full_response.find("OPTIMIZATIONS_END")
+                        if opt_start != -1 and opt_end != -1:
+                            optimizations = full_response[opt_start + len("OPTIMIZATIONS_START"):opt_end].strip()
+                        
+                        # Extract LaTeX code
+                        latex_start = full_response.find("LATEX_START")
+                        latex_end = full_response.find("LATEX_END")
+                        if latex_start != -1 and latex_end != -1:
+                            latex_code = full_response[latex_start + len("LATEX_START"):latex_end].strip()
+                        
+                        # If structured parsing failed, fall back to treating entire response as LaTeX
+                        if not latex_code:
+                            latex_code = full_response
+                            optimizations = "• Keywords optimized to match job requirements\n• Experience sections enhanced for relevance\n• Skills reordered by importance to the role"
+                        
+                        # Return both components as a tuple
+                        return (latex_code, optimizations)
                     else:
                         error_text = await response.text()
                         logger.error(f"OpenRouter API error: {error_text}")
@@ -1815,9 +1844,9 @@ Let's get you configured first!
             pass  # Continue if message edit fails
         
         # Generate optimized LaTeX resume
-        latex_code = await self.generate_optimized_latex_resume(resume_text, job_description, user_id)
+        resume_result = await self.generate_optimized_latex_resume(resume_text, job_description, user_id)
         
-        if not latex_code:
+        if not resume_result:
             await processing_msg.edit_text(
                 """
 <b>❌ Generation Failed</b>
@@ -1835,6 +1864,12 @@ Let's get you configured first!
                 parse_mode='HTML'
             )
             return
+        
+        # Unpack the result tuple
+        latex_code, optimizations = resume_result
+        
+        # Store optimizations in user session for later use
+        self.user_sessions[user_id]['last_optimizations'] = optimizations
         
         # Update processing message
         await processing_msg.edit_text(
@@ -1930,22 +1965,24 @@ The system will regenerate with better optimization.
                 
                 # Send the PDF file
                 with open(pdf_path, 'rb') as pdf_file:
-                    await update.message.reply_document(
-                        document=pdf_file,
-                        filename=f"optimized_resume_{user_id}.pdf",
-                        caption="""
+                    # Create the optimizations text
+                    optimizations_text = optimizations if optimizations.strip() else "• Keywords matched to job requirements\n• Experience reordered by relevance\n• ATS-friendly formatting\n• Professional LaTeX styling"
+                    
+                    caption = f"""
 <b>📄 Your Optimized Resume PDF</b>
 
 <i>✅ Generated successfully!</i>
 
 <b>🎯 Optimizations Applied:</b>
-• Keywords matched to job requirements
-• Experience reordered by relevance
-• ATS-friendly formatting
-• Professional LaTeX styling
+{optimizations_text}
 
 <i>Download and use for your job application!</i>
-                        """,
+                    """
+                    
+                    await update.message.reply_document(
+                        document=pdf_file,
+                        filename=f"optimized_resume_{user_id}.pdf",
+                        caption=caption,
                         reply_markup=self.get_main_menu_keyboard(),
                         parse_mode='HTML'
                     )
@@ -1974,16 +2011,16 @@ The error has been logged for debugging.
                 )
                 
                 # Send the LaTeX code as fallback
+                optimizations_display = optimizations if optimizations.strip() else "• Keywords matched to job requirements\n• Experience reordered by relevance\n• ATS-friendly formatting"
+                
                 message_text = f"📝 **Optimized LaTeX Code** (Fallback)\n\n```latex\n{pure_latex}\n```\n\n" \
                               f"**Instructions:**\n" \
                               f"1. Copy the LaTeX code above\n" \
                               f"2. Go to Overleaf.com\n" \
                               f"3. Create a new blank project\n" \
                               f"4. Paste and compile\n\n" \
-                              f"**Optimizations Applied:**\n" \
-                              f"• Keywords matched to job requirements\n" \
-                              f"• Experience reordered by relevance\n" \
-                              f"• ATS-friendly formatting"
+                              f"**🎯 Optimizations Applied:**\n" \
+                              f"{optimizations_display}"
                 
                 await self.send_long_message(
                     update,
