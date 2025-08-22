@@ -107,8 +107,7 @@ python bot.py
 ### Main Menu
 - 📄 **Optimize Resume (PDF)** - Upload resume and generate optimized PDF
 - ⚙️ **Settings** - Manage API key and AI model preferences
-- 🆘 **Help** - Comprehensive usage guide
-- ℹ️ **About** - Bot information and privacy details
+- ℹ️ **Info** - Bot information and usage guide
 
 ### Settings Management
 - 🔑 **Set/Update API Key** - Configure OpenRouter credentials
