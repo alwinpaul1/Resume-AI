@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import shutil
 import json
+import re
 from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -152,6 +153,7 @@ class ResumeAIBot:
     def get_back_cancel_keyboard(self):
         """Get back/cancel keyboard."""
         keyboard = [
+
             [
                 InlineKeyboardButton("🔙 Back", callback_data="back"),
                 InlineKeyboardButton("❌ Cancel", callback_data="cancel")
@@ -1047,7 +1049,7 @@ Now, please paste the complete job description for the position you're applying 
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-        except Exception as e:
+        except Exception:
             # If editing fails, send a new message instead
             await query.message.reply_text(
                 text,
@@ -1785,7 +1787,7 @@ Let's get you configured first!
                 """,
                 parse_mode='HTML'
             )
-        except:
+        except Exception:
             pass  # Continue if message edit fails
         
         # Generate optimized LaTeX resume
@@ -1849,7 +1851,7 @@ Let's get you configured first!
                     """,
                     parse_mode='HTML'
                 )
-            except:
+            except Exception:
                 pass  # Continue if message edit fails
             
             # Extract pure LaTeX from markdown
@@ -1870,7 +1872,7 @@ Let's get you configured first!
                     """,
                     parse_mode='HTML'
                 )
-            except:
+            except Exception:
                 pass  # Continue if message edit fails
             
             # Verify the content quality
@@ -1908,7 +1910,7 @@ The system will regenerate with better optimization.
                         """,
                         parse_mode='HTML'
                     )
-                except:
+                except Exception:
                     pass  # Continue if message edit fails
                 
                 # Send the PDF file
