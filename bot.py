@@ -462,9 +462,59 @@ You are an ATS optimization expert and professional resume strategist.
 - Make only content-level changes (phrasing, keyword alignment, terminology).  
 - Deliver the final resume as a **ready-to-use optimized PDF** that visually matches the original.  
 
-**Output Requirements:**  
-- Optimized resume in PDF format (same design/layout as original).  
-- A short bullet-point summary of keyword/phrasing optimizations applied.
+**Output Format (JSON):**
+{{
+  "personal_info": {{
+    "name": "Full Name",
+    "email": "email@example.com", 
+    "phone": "+1234567890",
+    "location": "City, Country",
+    "linkedin": "linkedin-handle",
+    "github": "github-handle",
+    "website": "website.com"
+  }},
+  "objective": "Optimized objective statement...",
+  "experience": [
+    {{
+      "title": "Job Title",
+      "company": "Company Name", 
+      "location": "City, Country",
+      "duration": "MM/YYYY - MM/YYYY",
+      "bullets": ["Achievement 1", "Achievement 2"],
+      "tech_stack": "Technologies used"
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "Degree Name",
+      "institution": "University Name",
+      "location": "City, Country", 
+      "duration": "YYYY - YYYY",
+      "details": "Key subjects or achievements"
+    }}
+  ],
+  "projects": [
+    {{
+      "title": "Project Name",
+      "github": "github.com/user/repo",
+      "bullets": ["Feature 1", "Feature 2"]
+    }}
+  ],
+  "skills": {{
+    "Programming & ML": ["Python", "PyTorch"],
+    "AI/ML Specialization": ["Deep Learning", "NLP"],
+    "Tools & Systems": ["Git", "Docker"]
+  }},
+  "achievements": [
+    {{
+      "title": "Achievement Name", 
+      "duration": "MM/YYYY - MM/YYYY",
+      "bullets": ["Detail 1", "Detail 2"]
+    }}
+  ],
+  "languages": ["English (C1)", "German (A2)"],
+  "optimizations": ["Summary of keyword changes made"]
+}}
             """
 
 
@@ -520,7 +570,175 @@ You are an ATS optimization expert and professional resume strategist.
             logger.error(f"Error generating resume data: {e}")
             return None
 
-
+    def generate_pdf_from_data(self, resume_data, output_path):
+        """Generate a professional PDF resume using ReportLab from structured data."""
+        try:
+            doc = SimpleDocTemplate(output_path, pagesize=A4, 
+                                  rightMargin=inch, leftMargin=inch, 
+                                  topMargin=inch, bottomMargin=inch)
+            
+            styles = getSampleStyleSheet()
+            story = []
+            
+            # Custom styles
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Title'],
+                fontSize=18,
+                spaceAfter=12,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#1f4e79')
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=14,
+                spaceAfter=6,
+                spaceBefore=12,
+                textColor=colors.HexColor('#1f4e79')
+            )
+            
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                spaceAfter=3
+            )
+            
+            bullet_style = ParagraphStyle(
+                'CustomBullet',
+                parent=styles['Normal'],
+                fontSize=9,
+                leftIndent=20,
+                spaceAfter=2
+            )
+            
+            # Personal info header
+            if 'personal_info' in resume_data:
+                info = resume_data['personal_info']
+                name = info.get('name', 'Name')
+                contact_info = []
+                if info.get('email'):
+                    contact_info.append(info['email'])
+                if info.get('phone'):
+                    contact_info.append(info['phone'])
+                if info.get('location'):
+                    contact_info.append(info['location'])
+                
+                story.append(Paragraph(name, title_style))
+                if contact_info:
+                    story.append(Paragraph(' • '.join(contact_info), normal_style))
+                
+                # Social links
+                social_links = []
+                if info.get('linkedin'):
+                    social_links.append(f"LinkedIn: {info['linkedin']}")
+                if info.get('github'):
+                    social_links.append(f"GitHub: {info['github']}")
+                if info.get('website'):
+                    social_links.append(f"Website: {info['website']}")
+                
+                if social_links:
+                    story.append(Paragraph(' • '.join(social_links), normal_style))
+                story.append(Spacer(1, 12))
+            
+            # Objective
+            if resume_data.get('objective'):
+                story.append(Paragraph('OBJECTIVE', heading_style))
+                story.append(Paragraph(resume_data['objective'], normal_style))
+                story.append(Spacer(1, 6))
+            
+            # Experience
+            if resume_data.get('experience'):
+                story.append(Paragraph('PROFESSIONAL EXPERIENCE', heading_style))
+                for exp in resume_data['experience']:
+                    # Job title and company
+                    job_header = f"<b>{exp.get('title', '')}</b> - {exp.get('company', '')}"
+                    if exp.get('location'):
+                        job_header += f" ({exp['location']})"
+                    if exp.get('duration'):
+                        job_header += f" | {exp['duration']}"
+                    
+                    story.append(Paragraph(job_header, normal_style))
+                    
+                    # Bullets
+                    for bullet in exp.get('bullets', []):
+                        story.append(Paragraph(f"• {bullet}", bullet_style))
+                    
+                    # Tech stack
+                    if exp.get('tech_stack'):
+                        story.append(Paragraph(f"<b>Tech Stack:</b> {exp['tech_stack']}", normal_style))
+                    
+                    story.append(Spacer(1, 8))
+            
+            # Education
+            if resume_data.get('education'):
+                story.append(Paragraph('EDUCATION', heading_style))
+                for edu in resume_data['education']:
+                    edu_text = f"<b>{edu.get('degree', '')}</b> - {edu.get('institution', '')}"
+                    if edu.get('location'):
+                        edu_text += f" ({edu['location']})"
+                    if edu.get('duration'):
+                        edu_text += f" | {edu['duration']}"
+                    
+                    story.append(Paragraph(edu_text, normal_style))
+                    if edu.get('details'):
+                        story.append(Paragraph(f"Key subjects: {edu['details']}", normal_style))
+                    story.append(Spacer(1, 6))
+            
+            # Projects
+            if resume_data.get('projects'):
+                story.append(Paragraph('PROJECTS', heading_style))
+                for project in resume_data['projects']:
+                    project_header = f"<b>{project.get('title', '')}</b>"
+                    if project.get('github'):
+                        project_header += f" | GitHub: {project['github']}"
+                    
+                    story.append(Paragraph(project_header, normal_style))
+                    
+                    for bullet in project.get('bullets', []):
+                        story.append(Paragraph(f"• {bullet}", bullet_style))
+                    story.append(Spacer(1, 6))
+            
+            # Skills
+            if resume_data.get('skills'):
+                story.append(Paragraph('SKILLS', heading_style))
+                for category, skills_list in resume_data['skills'].items():
+                    if isinstance(skills_list, list):
+                        skills_text = ', '.join(skills_list)
+                    else:
+                        skills_text = str(skills_list)
+                    story.append(Paragraph(f"<b>{category}:</b> {skills_text}", normal_style))
+                story.append(Spacer(1, 6))
+            
+            # Achievements
+            if resume_data.get('achievements'):
+                story.append(Paragraph('ACHIEVEMENTS', heading_style))
+                for achievement in resume_data['achievements']:
+                    ach_header = f"<b>{achievement.get('title', '')}</b>"
+                    if achievement.get('duration'):
+                        ach_header += f" | {achievement['duration']}"
+                    
+                    story.append(Paragraph(ach_header, normal_style))
+                    for bullet in achievement.get('bullets', []):
+                        story.append(Paragraph(f"• {bullet}", bullet_style))
+                    story.append(Spacer(1, 6))
+            
+            # Languages
+            if resume_data.get('languages'):
+                story.append(Paragraph('LANGUAGES', heading_style))
+                languages_text = ', '.join(resume_data['languages'])
+                story.append(Paragraph(languages_text, normal_style))
+            
+            # Build PDF
+            doc.build(story)
+            logger.info(f"PDF generated successfully: {output_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error generating PDF: {e}")
+            return False
 
     async def animate_loading_message(self, message, title_text: str, status_lines: list, duration_seconds: float = 1.8, frame_interval_seconds: float = 0.12):
         """Show a short spinner animation on the provided Telegram message."""
@@ -1749,20 +1967,77 @@ Let's get you configured first!
         # Store result as simple text response
         self.user_sessions[user_id]['last_response'] = resume_result
         
-        # Send the AI response as text
-        await processing_msg.edit_text(
-            f"""
+        # Parse the response to extract resume data and generate PDF
+        try:
+            # Try to parse JSON response
+            json_start = resume_result.find('{')
+            json_end = resume_result.rfind('}') + 1
+            if json_start != -1 and json_end > json_start:
+                json_str = resume_result[json_start:json_end]
+                resume_data = json.loads(json_str)
+                
+                # Generate PDF from structured data
+                pdf_path = f"/Users/alwinpaul/Desktop/Project/Resume AI/optimized_resume_{user_id}.pdf"
+                self.generate_pdf_from_data(resume_data, pdf_path)
+                
+                # Send PDF file
+                with open(pdf_path, 'rb') as pdf_file:
+                    optimizations = "\n".join(resume_data.get('optimizations', ['Keywords optimized for ATS compatibility']))
+                    
+                    caption = f"""
+<b>📄 Your Optimized Resume PDF</b>
+
+<i>✅ Generated successfully!</i>
+
+<b>🎯 Optimizations Applied:</b>
+{optimizations}
+
+<i>Download and use for your job application!</i>
+                    """
+                    
+                    await update.message.reply_document(
+                        document=pdf_file,
+                        filename=f"optimized_resume_{user_id}.pdf",
+                        caption=caption,
+                        reply_markup=self.get_main_menu_keyboard(),
+                        parse_mode='HTML'
+                    )
+            else:
+                # Fallback: send truncated text response
+                max_length = 3500
+                truncated_result = resume_result[:max_length] + "..." if len(resume_result) > max_length else resume_result
+                
+                await processing_msg.edit_text(
+                    f"""
 <b>✅ Resume Analysis Complete!</b>
 
 <i>Here's your optimized resume content:</i>
 
-{resume_result}
+{truncated_result}
+
+<i>Response truncated due to length. Full content available on request.</i>
+                    """,
+                    reply_markup=self.get_main_menu_keyboard(),
+                    parse_mode='HTML'
+                )
+        except json.JSONDecodeError:
+            # Fallback for non-JSON responses
+            max_length = 3500
+            truncated_result = resume_result[:max_length] + "..." if len(resume_result) > max_length else resume_result
+            
+            await processing_msg.edit_text(
+                f"""
+<b>✅ Resume Analysis Complete!</b>
+
+<i>Here's your optimized resume content:</i>
+
+{truncated_result}
 
 <i>Use this optimized content for your job application!</i>
-            """,
-            reply_markup=self.get_main_menu_keyboard(),
-            parse_mode='HTML'
-        )
+                """,
+                reply_markup=self.get_main_menu_keyboard(),
+                parse_mode='HTML'
+            )
 
 def main():
     """Start the bot."""
